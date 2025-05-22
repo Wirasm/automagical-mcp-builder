@@ -25,8 +25,9 @@ async def say_hello(name: str, greeting: Optional[str] = "Hello") -> str:
 
     # Import config here to avoid circular imports
     from ..config import get_config
+
     config = get_config()
-    
+
     return f"{greeting}, {name}! {config.server_welcome_message}"
 
 
@@ -42,8 +43,9 @@ async def get_server_info() -> str:
     """
     # Import config here to avoid circular imports
     from ..config import get_config
+
     config = get_config()
-    
+
     info = {
         "server_name": config.server_name,
         "version": config.version,

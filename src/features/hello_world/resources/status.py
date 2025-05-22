@@ -19,8 +19,9 @@ async def get_server_status() -> str:
     """
     # Import config here to avoid circular imports
     from ..config import get_config
+
     config = get_config()
-    
+
     status_data = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -31,7 +32,7 @@ async def get_server_status() -> str:
         "debug_mode": config.debug_mode,
         "features_available": [
             f"greeting_tool ({'enabled' if config.enable_greeting_tool else 'disabled'})",
-            f"server_info_tool ({'enabled' if config.enable_server_info_tool else 'disabled'})", 
+            f"server_info_tool ({'enabled' if config.enable_server_info_tool else 'disabled'})",
             f"status_resource ({'enabled' if config.enable_status_resource else 'disabled'})",
             f"usage_stats_resource ({'enabled' if config.enable_usage_stats_resource else 'disabled'})",
             f"formal_greeting_prompt ({'enabled' if config.enable_formal_greeting_prompt else 'disabled'})",
