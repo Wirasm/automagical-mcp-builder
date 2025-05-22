@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "hello-world-stdio": {
+      "command": "uv",
+      "args": ["run", "python", "src/server.py"],
+      "cwd": "/absolute/path/to/mcp-builder",
+      "env": {
+        "MCP_HELLO_TRANSPORT_TYPE": "stdio",
+        "MCP_HELLO_LOG_LEVEL": "INFO"
+      }
+    },
+    "hello-world-custom": {
+      "command": "uv", 
+      "args": ["run", "python", "src/server.py"],
+      "cwd": "/absolute/path/to/mcp-builder",
+      "env": {
+        "MCP_HELLO_TRANSPORT_TYPE": "stdio",
+        "MCP_HELLO_DEFAULT_GREETING": "Hi there",
+        "MCP_HELLO_SERVER_WELCOME_MESSAGE": "Welcome to our custom MCP server!",
+        "MCP_HELLO_DEBUG_MODE": "true",
+        "MCP_HELLO_LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}

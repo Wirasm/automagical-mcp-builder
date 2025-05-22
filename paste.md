@@ -1,0 +1,4 @@
+now we need to update the readme with a how to use this template, the user should clone this repo and cd into it, run uv sync                              
+then should ensure they have claude code isntalled                                                                                                             
+then they should run claude code with the /command .claude/commands/mcp_init.md with $ARGUMENTS replacing arguments with the description of what they want to build,     
+the more detail the better, when the run is done and the prp is created they should manually douple check it so it references their project correctly. then they should run the /command .claude/commands/implement_prp.md copying the relative path to the mcp prp as the argument and watch their mcp get built automagically.
