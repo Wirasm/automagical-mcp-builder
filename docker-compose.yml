@@ -1,0 +1,157 @@
+# MCP Builder - Docker Compose Configuration
+# Supports development and production deployments
+
+version: '3.8'
+
+services:
+  # Production MCP Server
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mcp-server
+    restart: unless-stopped
+    environment:
+      # Server configuration
+      - MCP_HELLO_SERVER_NAME=MCP Builder Server
+      - MCP_HELLO_VERSION=1.0.0
+      - MCP_HELLO_TRANSPORT_TYPE=stdio
+      
+      # Logging configuration
+      - MCP_HELLO_LOG_LEVEL=INFO
+      - MCP_HELLO_DEBUG_MODE=false
+      
+      # Feature toggles
+      - MCP_HELLO_ENABLE_GREETING_TOOL=true
+      - MCP_HELLO_ENABLE_SERVER_INFO_TOOL=true
+      - MCP_HELLO_ENABLE_STATUS_RESOURCE=true
+      
+    volumes:
+      # Mount logs directory for persistent logging
+      - ./logs:/app/logs
+      
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # SSE Transport MCP Server (for web integrations)
+  mcp-server-sse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: mcp-server-sse
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Server configuration for SSE transport
+      - MCP_HELLO_SERVER_NAME=MCP Builder SSE Server
+      - MCP_HELLO_VERSION=1.0.0
+      - MCP_HELLO_TRANSPORT_TYPE=sse
+      - MCP_HELLO_HOST=0.0.0.0
+      - MCP_HELLO_PORT=8000
+      
+      # Logging configuration
+      - MCP_HELLO_LOG_LEVEL=INFO
+      - MCP_HELLO_DEBUG_MODE=false
+      
+      # Feature configuration
+      - MCP_HELLO_ENABLE_GREETING_TOOL=true
+      - MCP_HELLO_ENABLE_SERVER_INFO_TOOL=true
+      - MCP_HELLO_ENABLE_STATUS_RESOURCE=true
+      
+    volumes:
+      - ./logs:/app/logs
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Development MCP Server with hot reloading
+  mcp-server-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: mcp-server-dev
+    volumes:
+      # Mount source code for development
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./logs:/app/logs
+    environment:
+      # Development configuration
+      - MCP_HELLO_SERVER_NAME=MCP Builder Dev Server
+      - MCP_HELLO_VERSION=dev
+      - MCP_HELLO_TRANSPORT_TYPE=stdio
+      
+      # Development logging
+      - MCP_HELLO_LOG_LEVEL=DEBUG
+      - MCP_HELLO_DEBUG_MODE=true
+      
+      # Enable all features for development
+      - MCP_HELLO_ENABLE_GREETING_TOOL=true
+      - MCP_HELLO_ENABLE_SERVER_INFO_TOOL=true
+      - MCP_HELLO_ENABLE_STATUS_RESOURCE=true
+      - MCP_HELLO_ENABLE_USAGE_STATS_RESOURCE=true
+      - MCP_HELLO_ENABLE_FORMAL_GREETING_PROMPT=true
+      - MCP_HELLO_ENABLE_CASUAL_GREETING_PROMPT=true
+    
+    # Override command for development
+    command: python src/server.py
+    
+    profiles:
+      - development
+
+  # Testing service for running tests in containerized environment
+  mcp-server-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: mcp-server-test
+    volumes:
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./tests:/app/tests
+    environment:
+      - MCP_HELLO_LOG_LEVEL=ERROR  # Reduce noise during testing
+    command: python -m pytest src/ -v
+    profiles:
+      - testing
+
+volumes:
+  logs:
+    driver: local
+
+networks:
+  default:
+    name: mcp-builder-network

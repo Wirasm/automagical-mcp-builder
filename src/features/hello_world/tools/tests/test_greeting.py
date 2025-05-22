@@ -26,13 +26,13 @@ class TestSayHello:
     @pytest.mark.asyncio
     async def test_say_hello_empty_name(self):
         """Test that empty name raises appropriate error."""
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+        with pytest.raises(ValueError, match=r"Input validation failed"):
             await say_hello("")
 
     @pytest.mark.asyncio
     async def test_say_hello_whitespace_name(self):
         """Test that whitespace-only name raises appropriate error."""
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+        with pytest.raises(ValueError, match=r"Name cannot be empty"):
             await say_hello("   ")
 
 

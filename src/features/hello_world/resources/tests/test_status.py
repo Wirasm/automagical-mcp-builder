@@ -26,19 +26,24 @@ class TestGetServerStatus:
         result = await get_server_status()
         status_data = json.loads(result)
 
-        # Check required fields
+        # Check required fields (new standardized format)
         assert "status" in status_data
-        assert "timestamp" in status_data
+        assert "last_updated" in status_data  # Changed from "timestamp"
         assert "uptime_info" in status_data
         assert "features_available" in status_data
         assert "version" in status_data
         assert "transport_mode" in status_data
+
+        # Check metadata fields from MCPResourceData
+        assert "cache_ttl" in status_data
+        assert "content_type" in status_data
 
         # Check values
         assert status_data["status"] == "healthy"
         assert status_data["version"] == "1.0.0"
         assert status_data["transport_mode"] == "stdio"
         assert isinstance(status_data["features_available"], list)
+        assert status_data["content_type"] == "application/json"
 
     @pytest.mark.asyncio
     async def test_get_server_status_timestamp(self):
@@ -46,8 +51,8 @@ class TestGetServerStatus:
         result = await get_server_status()
         status_data = json.loads(result)
 
-        # Should be able to parse timestamp
-        timestamp_str = status_data["timestamp"]
+        # Should be able to parse timestamp (now called last_updated)
+        timestamp_str = status_data["last_updated"]
         timestamp = datetime.fromisoformat(timestamp_str)
         assert isinstance(timestamp, datetime)
 

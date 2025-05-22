@@ -48,7 +48,7 @@ uv run pytest
 uv pip install -e .
 
 # Run the main application
-uv run python src/main.py
+uv run python src/main_server.py
 ```
 
 ## Code Architecture
@@ -58,52 +58,54 @@ uv run python src/main.py
 ### Complete Project Structure
 ```
 ├── ai_docs/                    # AI documentation and context
+├── claude_desktop_config.json.example # Example Claude Desktop configuration
 ├── CLAUDE.md                   # This file - project context
-├── mcp_builder.egg-info/       # Package metadata (auto-generated)
+├── docker-compose.yml          # Docker Compose configuration
+├── Dockerfile                  # Docker image definition
+├── docs/                       # Documentation
+│   └── docker-deployment.md    # Docker deployment guide
 ├── prps/                       # Product Requirement Prompts
 │   └── prp_base_template_v1.md # Base MCP PRP template
 ├── pyproject.toml              # UV package configuration
 ├── README.md                   # Project documentation
+├── scripts/                    # Utility scripts
+│   └── docker-run.sh           # Docker helper script
 ├── src/                        # Source code
-│   ├── main.py                 # Application entry point
-│   ├── config.py               # Configuration management
-│   ├── server.py               # Main MCP server setup
+│   ├── __init__.py
+│   ├── main_server.py          # Main server entry point (routes to features)
+│   ├── logging_config.py       # Standardized logging module
+│   ├── data_types.py           # Standard data types and response formats
 │   ├── features/               # Feature modules (vertical slices)
 │   │   ├── __init__.py
-│   │   └── feature_name/       # Individual feature (e.g., github_integration, weather_api, slack_integration)
+│   │   └── hello_world/        # Hello World example feature
 │   │       ├── __init__.py
+│   │       ├── config.py       # Feature-specific configuration
+│   │       ├── hello_world_server.py # Feature's MCP server implementation
 │   │       ├── api/            # External API integrations for this feature
 │   │       │   ├── __init__.py
-│   │       │   ├── feature_api.py      # API client implementation
-│   │       │   ├── shared/             # Shared utilities for API
-│   │       │   │   ├── __init__.py
-│   │       │   │   └── shared.py       # Common API utilities
-│   │       │   └── tests/              # API tests
-│   │       │       ├── __init__.py
-│   │       │       └── test_feature_api.py
+│   │       │   └── tests/      # API tests (currently empty for hello_world)
+│   │       │       └── __init__.py
 │   │       ├── tools/          # MCP Tools (actions LLMs can call)
 │   │       │   ├── __init__.py
-│   │       │   ├── tool.py             # Tool implementation
-│   │       │   └── tests/              # Tool tests (co-located)
+│   │       │   ├── greeting.py # Greeting tool implementations
+│   │       │   └── tests/      # Tool tests (co-located)
 │   │       │       ├── __init__.py
-│   │       │       └── test_tool.py
+│   │       │       └── test_greeting.py
 │   │       ├── resources/      # MCP Resources (read-only data)
 │   │       │   ├── __init__.py
-│   │       │   ├── resource.py         # Resource implementation
-│   │       │   └── tests/              # Resource tests (co-located)
+│   │       │   ├── status.py   # Status resource implementations
+│   │       │   └── tests/      # Resource tests (co-located)
 │   │       │       ├── __init__.py
-│   │       │       └── test_resource.py
+│   │       │       └── test_status.py
 │   │       └── prompts/        # MCP Prompts (reusable templates)
 │   │           ├── __init__.py
-│   │           ├── prompt.py           # Prompt implementation
-│   │           └── tests/              # Prompt tests (co-located)
+│   │           ├── greeting_template.py # Greeting prompt templates
+│   │           └── tests/      # Prompt tests (co-located)
 │   │               ├── __init__.py
-│   │               └── test_prompt.py
+│   │               └── test_greeting_template.py
 │   └── tests/                  # Root-level integration tests
 │       ├── __init__.py
-│       ├── test_server.py      # Server integration tests
-│       ├── test_main.py        # Main application tests
-│       └── test_config.py      # Configuration tests
+│       └── test_logging_config.py # Logging system tests
 └── uv.lock                     # Dependency lock file (auto-generated)
 ```
 
@@ -115,6 +117,16 @@ uv run python src/main.py
 2. **Resources**: `src/features/feature_name/resources/resource.py` → `src/features/feature_name/resources/tests/test_resource.py`  
 3. **Prompts**: `src/features/feature_name/prompts/prompt.py` → `src/features/feature_name/prompts/tests/test_prompt.py`
 4. **APIs**: `src/features/feature_name/api/feature_api.py` → `src/features/feature_name/api/tests/test_feature_api.py`
+
+### File Naming Conventions
+
+**IMPORTANT: Follow these naming patterns for clarity and consistency:**
+
+1. **Main Server Entry Point**: `src/main_server.py` - Routes requests to feature servers
+2. **Feature Servers**: `src/features/{feature_name}/{feature_name}_server.py` - Individual feature implementations
+3. **Feature Config**: `src/features/{feature_name}/config.py` - Feature-specific configuration
+4. **Component Files**: Use descriptive names (e.g., `greeting.py`, `status.py`, `greeting_template.py`)
+5. **Test Files**: Always prefix with `test_` and match the component name exactly
 
 ### Feature Development Pattern
 
@@ -155,8 +167,8 @@ src/features/github_integration/
 
 ### Core Workflow Commands
 ```bash
-# Start development
-uv sync && uv run python src/main.py
+# Start development (CRITICAL: Install in editable mode first)
+uv sync && uv pip install -e . && uv run python src/main_server.py
 
 # Run tests
 uv run pytest
@@ -254,13 +266,13 @@ src/features/weather_api/           # Example MCP feature
 
 ```bash
 # Test MCP server during development
-uv run mcp dev src/features/{feature_name}/server.py
+uv run mcp dev src/features/{feature_name}/{feature_name}_server.py
 
 # Test with MCP Inspector (visual testing)
-npx @modelcontextprotocol/inspector python src/features/{feature_name}/server.py
+npx @modelcontextprotocol/inspector python src/features/{feature_name}/{feature_name}_server.py
 
 # Install MCP server in Claude Desktop for testing
-mcp install src/features/{feature_name}/server.py
+mcp install src/features/{feature_name}/{feature_name}_server.py
 
 # Run MCP-specific tests
 uv run pytest src/features/{feature_name}/
@@ -280,7 +292,7 @@ uv run pytest src/features/*/resources/tests/
   "mcpServers": {
     "{feature_name}": {
       "command": "uv",
-      "args": ["run", "python", "src/features/{feature_name}/server.py"],
+      "args": ["run", "python", "src/features/{feature_name}/{feature_name}_server.py"],
       "cwd": "/absolute/path/to/mcp_builder",
       "env": {
         "API_KEY": "your-api-key-if-needed"
@@ -292,7 +304,7 @@ uv run pytest src/features/*/resources/tests/
 
 **Testing Workflow:**
 1. Develop MCP server using our vertical slice architecture
-2. Test with `uv run mcp dev src/features/{feature}/server.py`
+2. Test with `uv run mcp dev src/features/{feature}/{feature}_server.py`
 3. Validate with MCP Inspector visual testing
 4. Integration test with Claude Desktop configuration
 5. Run all co-located tests: `uv run pytest src/features/{feature}/`
@@ -303,25 +315,331 @@ uv run pytest src/features/*/resources/tests/
 - **Prompts**: Reusable templates for LLM interactions - guide usage
 - **Transport**: stdio (local testing), SSE (remote deployment)
 
+## Logging Standards
+
+**CRITICAL: All MCP servers MUST use the standardized logging module for consistency and observability.**
+
+### Core Logging Module
+Use the centralized logging configuration from `src/logging_config.py`:
+
+```python
+from logging_config import setup_mcp_logging, MCPLogger, log_performance, log_context
+
+# Setup logging in your feature's {feature_name}_server.py
+logger = setup_mcp_logging(config)
+
+# Use in tools, resources, and prompts
+@mcp.tool()
+@log_performance(logger)
+async def my_tool(param: str) -> str:
+    """Tool with automatic performance logging."""
+    logger.tool_called("my_tool", param_length=len(param))
+    
+    try:
+        result = process_data(param)
+        return success_response(data=result).to_json_string()
+    except Exception as e:
+        logger.tool_failed("my_tool", str(e), 0)
+        return error_response(
+            ErrorCode.INTERNAL_ERROR, 
+            "Tool execution failed"
+        ).to_json_string()
+```
+
+### Structured Logging Requirements
+
+**MANDATORY for all MCP implementations:**
+
+1. **Tool Execution Logging**: Every tool MUST log start, completion, and errors
+2. **Resource Access Logging**: Track all resource accesses with timing
+3. **External API Logging**: Log all external API calls with duration and status
+4. **Security Event Logging**: Log authentication and authorization events
+5. **Performance Metrics**: Track execution times and resource usage
+
+### Logging Context Management
+
+```python
+# Use context for related operations
+with log_context(logger, user_id="user123", session_id="session456"):
+    result = await some_operation()
+    # All logs in this context will include user_id and session_id
+```
+
+### Log Levels and Usage
+
+- **DEBUG**: Detailed diagnostic information (development only)
+- **INFO**: General information about normal operations
+- **WARNING**: Potentially problematic situations that don't stop execution
+- **ERROR**: Error events that still allow the application to continue
+- **CRITICAL**: Serious error events that may cause the application to abort
+
+## Data Types and Response Standards
+
+**CRITICAL: All MCP servers MUST use standardized data types from `src/data_types.py` for consistency.**
+
+### Standard Response Format
+
+**ALL tools MUST return standardized JSON responses:**
+
+```python
+from data_types import MCPToolResponse, success_response, error_response, ErrorCode
+
+@mcp.tool()
+async def standardized_tool(name: str) -> str:
+    """Tool following standard response format."""
+    try:
+        # Input validation
+        if not name.strip():
+            return error_response(
+                ErrorCode.VALIDATION_ERROR,
+                "Name cannot be empty"
+            ).to_json_string()
+        
+        # Process request
+        result = process_name(name)
+        
+        # Return standardized success
+        return success_response(
+            data={"processed_name": result},
+            message=f"Successfully processed {name}",
+            metadata={"processing_time": "0.5s"}
+        ).to_json_string()
+        
+    except Exception as e:
+        return error_response(
+            ErrorCode.INTERNAL_ERROR,
+            f"Processing failed: {str(e)}"
+        ).to_json_string()
+```
+
+### Input Validation Patterns
+
+**ALL tool inputs MUST be validated using Pydantic models:**
+
+```python
+from data_types import TextInput, UserIdentifier, validate_tool_input
+
+@mcp.tool()
+async def validated_tool(name: str, email: str = None) -> str:
+    """Tool with proper input validation."""
+    try:
+        # Validate input using standard models
+        user_data = validate_tool_input(
+            UserIdentifier, 
+            {"name": name, "email": email}
+        )
+        
+        # Use validated data
+        result = process_user(user_data)
+        return success_response(data=result).to_json_string()
+        
+    except ValueError as e:
+        return error_response(
+            ErrorCode.VALIDATION_ERROR,
+            str(e)
+        ).to_json_string()
+```
+
+### Resource Data Standards
+
+**ALL resources MUST extend MCPResourceData:**
+
+```python
+from data_types import MCPResourceData
+
+class WeatherData(MCPResourceData):
+    """Weather resource data model."""
+    temperature: float
+    humidity: int
+    conditions: str
+    location: str
+
+@mcp.resource("weather://current/{location}")
+async def get_weather(location: str) -> str:
+    """Resource with standardized data structure."""
+    weather_data = WeatherData(
+        temperature=72.5,
+        humidity=65,
+        conditions="sunny",
+        location=location,
+        cache_ttl=300  # 5 minutes
+    )
+    return weather_data.model_dump_json(indent=2)
+```
+
+### Error Handling Standards
+
+**ALL errors MUST use standardized error codes and responses:**
+
+```python
+from data_types import ErrorCode, error_response
+
+# Standard error patterns:
+try:
+    api_result = await external_api_call()
+except TimeoutError:
+    return error_response(
+        ErrorCode.TIMEOUT_ERROR,
+        "External API request timed out",
+        details={"timeout_seconds": 30}
+    ).to_json_string()
+except PermissionError:
+    return error_response(
+        ErrorCode.PERMISSION_DENIED,
+        "Insufficient permissions for this operation"
+    ).to_json_string()
+```
+
+### Data Type Rules
+
+**MANDATORY rules for all MCP implementations:**
+
+1. **Consistent Response Format**: All tools return MCPToolResponse JSON strings
+2. **Input Validation**: All inputs validated with Pydantic models
+3. **Error Standardization**: All errors use standard ErrorCode enumeration
+4. **Resource Structure**: All resources extend MCPResourceData
+5. **Type Hints**: All functions have complete type annotations
+6. **JSON Serialization**: Use `serialize_for_llm()` for complex data
+
 ## Code Style Preferences
 
 ### Python Style
 - Use type hints for all function parameters and return types
 - Use docstrings for all public functions and classes
 - Prefer async/await for I/O operations
-- Use Pydantic models for data validation when appropriate
+- **MANDATORY**: Use standardized data types from `src/data_types.py`
+- **MANDATORY**: Use logging from `src/logging_config.py`
 - Keep functions small and focused (single responsibility)
 
 ### File Organization
 - Each feature should be self-contained in its own module
 - Import statements should be organized: standard library, third-party, local imports
 - Use absolute imports from src/ directory
+- **Import logging and data types in all feature modules**
 
 ### Testing Conventions
 - Test files must start with `test_`
 - Test functions must start with `test_`
 - Use descriptive test names that explain what is being tested
 - Mock external dependencies in tests
+- **Test both success and error response formats**
+- **Test input validation thoroughly**
+
+## Docker Deployment Standards
+
+**CRITICAL: All MCP servers MUST support containerized deployment for production environments.**
+
+### Docker Configuration Requirements
+
+**Multi-Stage Dockerfile Pattern:**
+```dockerfile
+# Required: Multi-stage build with UV package manager
+FROM python:3.12-slim-bookworm AS builder
+COPY --from=ghcr.io/astral-sh/uv:0.5.18 /uv /uvx /bin/
+
+# Required: UV environment variables
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+
+# Required: Dependency caching
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-editable
+
+# Required: Production stage with minimal footprint
+FROM python:3.12-slim-bookworm AS production
+COPY --from=builder /app/.venv /app/.venv
+```
+
+### Container Development Commands
+
+**MANDATORY Docker commands for all MCP implementations:**
+
+```bash
+# Build optimized production image
+docker build --target production -t mcp-server:latest .
+
+# Development with hot reloading
+docker-compose --profile development up mcp-server-dev
+
+# Production deployment
+docker-compose up -d mcp-server
+
+# SSE transport for web integrations
+docker-compose up -d mcp-server-sse
+
+# Containerized testing
+docker-compose --profile testing run mcp-server-test
+
+# Container validation
+./scripts/docker-run.sh validate
+```
+
+### Transport Configuration for Containers
+
+**Stdio Transport (Claude Desktop):**
+```bash
+# Environment configuration
+MCP_HELLO_TRANSPORT_TYPE=stdio
+MCP_HELLO_LOG_LEVEL=INFO
+```
+
+**SSE Transport (Web Applications):**
+```bash
+# Port exposure required
+docker run -p 8000:8000 -e MCP_HELLO_TRANSPORT_TYPE=sse mcp-server:latest
+```
+
+**WebSocket Transport (Real-time):**
+```bash
+# WebSocket configuration
+docker run -p 8001:8001 -e MCP_HELLO_TRANSPORT_TYPE=websocket mcp-server:latest
+```
+
+### Container Security Standards
+
+**MANDATORY security requirements:**
+
+1. **Non-root execution**: All containers MUST run as non-root user
+2. **Minimal base images**: Use slim-bookworm for production
+3. **Resource limits**: Configure memory and CPU limits
+4. **Health checks**: Implement proper health monitoring
+5. **Secrets management**: Use environment variables or Docker secrets
+
+```dockerfile
+# Security requirements
+RUN groupadd -r mcp && useradd -r -g mcp mcp
+USER mcp
+
+# Health check implementation
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" || exit 1
+```
+
+### Production Deployment Requirements
+
+**Container orchestration support:**
+- Docker Compose for local development
+- Kubernetes manifests for cloud deployment
+- Health checks for load balancer integration
+- Resource limits for cluster management
+
+**Monitoring and observability:**
+- Structured logging to stdout
+- Prometheus metrics endpoints (if applicable)
+- Health check endpoints
+- Performance monitoring integration
+
+### Docker Helper Script Requirements
+
+**MANDATORY: All MCP features MUST include docker-run.sh script with:**
+
+```bash
+./scripts/docker-run.sh build      # Build images
+./scripts/docker-run.sh dev        # Development server
+./scripts/docker-run.sh prod       # Production server
+./scripts/docker-run.sh test       # Run tests
+./scripts/docker-run.sh validate   # Validate setup
+```
 
 ## Important Notes
 
@@ -382,7 +700,7 @@ uv run pytest src/features/weather_api/tools/tests/
 uv run pytest src/features/weather_api/resources/tests/
 ```
 
-4. **Register with Main Server** in `src/server.py`
+4. **Register with Main Server** in `src/main_server.py`
 
 ### Adding a Single MCP Tool
 
@@ -409,10 +727,10 @@ uv sync
 ### Debugging MCP Servers
 ```bash
 # Use MCP Inspector for visual testing
-npx @modelcontextprotocol/inspector python src/server.py
+npx @modelcontextprotocol/inspector python src/main_server.py
 
 # Use mcp dev for FastMCP servers
-mcp dev src/server.py
+mcp dev src/main_server.py
 
 # Check server logs and errors in terminal output
 ```
@@ -428,7 +746,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone <repo-url>
 cd mcp_builder
 uv sync
-uv run python src/main.py
+uv pip install -e .  # CRITICAL: Install in editable mode for imports
+uv run python src/main_server.py
 ```
 
 ### IDE Configuration

@@ -67,7 +67,7 @@ Example: "Build an MCP server that exposes GitHub repository data and operations
 [Specify transport configuration - examples below]
 
 # For stdio (local development/deployment):
-- Command: python server.py
+- Command: python {feature_name}_server.py
 - Communication: Standard input/output streams
 - Use case: Local MCP clients, development, Claude Desktop
 
@@ -208,7 +208,7 @@ src/features/{feature_name}/        # Replace {feature_name} with actual feature
 │   └── tests/
 │       ├── __init__.py
 │       └── test_{prompt_name}.py
-└── server.py                      # Feature's MCP server entry point
+└── {feature_name}_server.py       # Feature's MCP server entry point
 ```
 
 **Integration Files** (if needed for this specific server):
@@ -245,7 +245,7 @@ src/features/{feature_name}/        # Replace {feature_name} with actual feature
 
 ### Core Server Implementation
 
-1. `mcp_server/server.py` - Main FastMCP server setup
+1. `{feature_name}_server.py` - Feature's FastMCP server setup
 
 ```python
 """
@@ -353,8 +353,9 @@ async def resource_function(
 Configuration management for MCP server.
 Handles environment variables, secrets, and server settings.
 """
-from pydantic import BaseSettings
+from pydantic import BaseSettings, ConfigDict, field_serializer
 from typing import Optional
+from datetime import datetime
 
 class Settings(BaseSettings):
     """Server configuration"""
@@ -375,9 +376,10 @@ class Settings(BaseSettings):
     oauth_client_id: Optional[str] = None
     oauth_client_secret: Optional[str] = None
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8"
+    )
 
 def get_settings() -> Settings:
     """Get server settings instance"""
@@ -414,7 +416,7 @@ class OAuthHandler:
 
 ### Testing and Validation
 
-6. `tests/test_server.py` - Server integration tests
+6. `tests/test_{feature_name}_server.py` - Server integration tests
 
 ```python
 """
@@ -469,6 +471,200 @@ async def test_resource_access():
 **Error Handling Strategy for This Domain**
 [Domain-specific error handling patterns, retry logic, fallback behaviors]
 
+### Logging and Observability Strategy
+
+**CRITICAL: This server MUST implement standardized logging using the MCP Builder logging module.**
+
+**Logging Requirements for This Server:**
+```python
+# Required imports in all feature modules
+from logging_config import setup_mcp_logging, MCPLogger, log_performance, log_context
+from data_types import success_response, error_response, ErrorCode
+
+# Setup in {feature_name}_server.py
+logger = setup_mcp_logging(config)
+
+# Tool implementation with logging
+@mcp.tool()
+@log_performance(logger)
+async def server_specific_tool(param: str) -> str:
+    """Server-specific tool with proper logging."""
+    logger.tool_called("server_specific_tool", param_length=len(param))
+    
+    try:
+        # Log external API calls
+        with log_context(logger, operation="external_api_call"):
+            api_result = await external_api_call(param)
+            logger.external_api_call("service_name", "/endpoint", 
+                                   duration_ms=150, status_code=200)
+        
+        return success_response(data=api_result).to_json_string()
+        
+    except Exception as e:
+        logger.tool_failed("server_specific_tool", str(e), 0)
+        return error_response(
+            ErrorCode.EXTERNAL_API_ERROR,
+            "External service unavailable"
+        ).to_json_string()
+```
+
+**Specific Logging Requirements:**
+- **Tool Execution**: Log start, duration, success/failure for all tools
+- **External API Integration**: Log all API calls with timing and status codes
+- **Authentication Events**: Log login attempts, token validation, authorization failures
+- **Performance Metrics**: Track response times, cache hit rates, concurrent users
+- **Security Events**: Log suspicious activity, rate limiting triggers, access violations
+- **Resource Access**: Track which resources are accessed and how frequently
+
+**Structured Log Context for This Server:**
+```python
+# Context variables specific to this server's domain
+with log_context(logger, 
+                user_id="user123",
+                organization_id="org456",
+                request_id="req789",
+                feature_flag="new_feature_enabled"):
+    # All operations here include this context
+    result = await process_request()
+```
+
+### Data Types and Validation Strategy
+
+**CRITICAL: This server MUST use standardized data types from the MCP Builder data types module.**
+
+**Standard Response Implementation:**
+```python
+from data_types import (
+    MCPToolResponse, MCPErrorResponse, MCPResourceData,
+    success_response, error_response, ErrorCode,
+    validate_tool_input, serialize_for_llm
+)
+
+# Example tool with proper data types
+@mcp.tool()
+async def typed_server_tool(input_data: dict) -> str:
+    """Tool with comprehensive input validation and standard responses."""
+    try:
+        # Define server-specific input model
+        class ServerToolInput(BaseModel):
+            query: str = Field(..., min_length=1, max_length=1000)
+            options: Optional[Dict[str, Any]] = None
+            timeout: int = Field(default=30, ge=1, le=300)
+            
+            @validator('query')
+            def validate_query(cls, v):
+                # Server-specific validation logic
+                if 'forbidden_term' in v.lower():
+                    raise ValueError('Query contains forbidden terms')
+                return v.strip()
+        
+        # Validate input
+        validated_input = validate_tool_input(ServerToolInput, input_data)
+        
+        # Process with validated data
+        result = await process_query(
+            validated_input.query, 
+            validated_input.options,
+            timeout=validated_input.timeout
+        )
+        
+        # Return standardized success response
+        return success_response(
+            data=result,
+            message=f"Successfully processed query: {validated_input.query[:50]}...",
+            metadata={
+                "query_length": len(validated_input.query),
+                "processing_time": "1.2s",
+                "result_count": len(result) if isinstance(result, list) else 1
+            }
+        ).to_json_string()
+        
+    except ValueError as e:
+        # Input validation error
+        return error_response(
+            ErrorCode.VALIDATION_ERROR,
+            str(e),
+            details={"input_data": input_data}
+        ).to_json_string()
+        
+    except TimeoutError:
+        # Timeout error
+        return error_response(
+            ErrorCode.TIMEOUT_ERROR,
+            "Request timed out",
+            details={"timeout_seconds": validated_input.timeout}
+        ).to_json_string()
+        
+    except Exception as e:
+        # Unexpected error
+        return error_response(
+            ErrorCode.INTERNAL_ERROR,
+            f"Unexpected error: {str(e)}"
+        ).to_json_string()
+```
+
+**Server-Specific Data Models:**
+```python
+# Define domain-specific data models extending standard base classes
+
+class ServerResourceData(MCPResourceData):
+    """Base data model for this server's resources."""
+    server_specific_field: str
+    validation_status: str
+    last_sync: datetime
+    
+    @field_serializer('last_sync')
+    def serialize_last_sync(self, value: datetime) -> str:
+        """Serialize last_sync to ISO format."""
+        return value.isoformat()
+
+class ServerPromptTemplate(MCPPromptTemplate):
+    """Server-specific prompt template structure."""
+    domain_category: str
+    complexity_level: int = Field(ge=1, le=5)
+    required_permissions: List[str] = []
+
+# Usage in resources
+@mcp.resource("server://data/{resource_id}")
+async def get_server_resource(resource_id: str) -> str:
+    """Resource with server-specific data structure."""
+    resource_data = ServerResourceData(
+        server_specific_field="domain_value",
+        validation_status="validated",
+        last_sync=datetime.now(),
+        cache_ttl=600  # 10 minutes
+    )
+    return resource_data.model_dump_json(indent=2)
+```
+
+**Error Code Strategy for This Server:**
+```python
+# Define server-specific error codes if needed
+class ServerErrorCode(str, Enum):
+    """Server-specific error codes extending standard codes."""
+    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
+    SERVICE_MAINTENANCE = "SERVICE_MAINTENANCE"
+    DATA_CORRUPTION = "DATA_CORRUPTION"
+    INTEGRATION_FAILURE = "INTEGRATION_FAILURE"
+
+# Use in error responses
+return error_response(
+    ServerErrorCode.QUOTA_EXCEEDED,
+    "User has exceeded their quota limit",
+    details={
+        "current_usage": 150,
+        "quota_limit": 100,
+        "reset_time": "2024-01-01T00:00:00Z"
+    }
+).to_json_string()
+```
+
+**Input Validation Patterns for This Server:**
+[Specify the exact input validation requirements for this server's domain - what fields are required, what formats are expected, what business rules must be enforced]
+
+**Response Format Requirements for This Server:**
+[Specify any domain-specific response format requirements - special metadata fields, required data structures, LLM consumption patterns]
+
 ### Resource Implementation Strategy
 
 **Data Source Integration**
@@ -511,12 +707,17 @@ async def test_resource_access():
 - [ ] Tools handle invalid inputs gracefully with clear error messages
 - [ ] Tools perform expected side effects correctly
 - [ ] Tool responses are in the expected format for LLM consumption
+- [ ] All tools use standardized MCPToolResponse format
+- [ ] All tools implement proper input validation with Pydantic models
+- [ ] All tools use standard ErrorCode enumeration for errors
 
 ### Resource Access
 - [ ] All resources return data in expected format
 - [ ] Parameterized resources handle URI template variables correctly
 - [ ] Resource content is appropriate for LLM context consumption
 - [ ] Resource access doesn't cause performance issues
+- [ ] All resources extend MCPResourceData base class
+- [ ] Resource data includes proper metadata and caching information
 
 ### Authentication & Security (if applicable)
 - [ ] OAuth flow completes successfully for remote servers
@@ -524,6 +725,26 @@ async def test_resource_access():
 - [ ] Rate limiting prevents abuse
 - [ ] Sensitive data is properly protected
 - [ ] Security headers are set appropriately
+
+### Logging and Observability
+- [ ] Server uses standardized logging from src/logging_config.py
+- [ ] All tools implement @log_performance decorator
+- [ ] Tool execution logging includes start, completion, and error events
+- [ ] External API calls are logged with timing and status codes
+- [ ] Security events are properly logged and categorized
+- [ ] Structured logging context is used for related operations
+- [ ] Log levels are appropriate for production deployment
+- [ ] Performance metrics are tracked and logged
+
+### Data Types and Validation
+- [ ] All tools use MCPToolResponse standard format
+- [ ] All inputs are validated using Pydantic models
+- [ ] Error responses use standard ErrorCode enumeration
+- [ ] Resources extend MCPResourceData base class
+- [ ] Custom data models follow project conventions
+- [ ] Input validation covers all edge cases and business rules
+- [ ] Response serialization uses serialize_for_llm() utility
+- [ ] Type hints are complete and accurate throughout
 
 ### Client Integration
 - [ ] Server can be configured in Claude Desktop successfully
@@ -548,7 +769,7 @@ async def test_resource_access():
 **Implementation Steps:**
 - Create feature directory following CLAUDE.md vertical slice pattern
 - Set up FastMCP server following our project standards
-- Implement server entry point in `src/features/{feature_name}/server.py`
+- Implement server entry point in `src/features/{feature_name}/{feature_name}_server.py`
 
 **Testing Approach:**
 - Use our project's MCP testing commands from CLAUDE.md
@@ -561,7 +782,7 @@ async def test_resource_access():
 **Validation Command:**
 ```bash
 # Use our project's testing pattern
-uv run mcp dev src/server.py
+uv run mcp dev src/main_server.py
 ```
 
 ### 2. Tool Implementation and Testing
@@ -752,7 +973,7 @@ This PRP assumes implementation within the MCP Builder project structure defined
   "mcpServers": {
     "{feature_name}": {
       "command": "uv",
-      "args": ["run", "python", "src/features/{feature_name}/server.py"],
+      "args": ["run", "python", "src/features/{feature_name}/{feature_name}_server.py"],
       "cwd": "/absolute/path/to/mcp_builder",
       "env": {
         [Server-specific environment variables]

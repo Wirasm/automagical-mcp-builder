@@ -36,13 +36,15 @@ class TestFormalGreetingPrompt:
     @pytest.mark.asyncio
     async def test_formal_greeting_empty_name(self):
         """Test that empty name raises appropriate error."""
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+        with pytest.raises(ValueError, match=r"Input validation failed"):
             await formal_greeting_prompt("")
 
     @pytest.mark.asyncio
     async def test_formal_greeting_whitespace_name(self):
         """Test that whitespace-only name raises appropriate error."""
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+        with pytest.raises(
+            ValueError, match=r"Name cannot be empty or only whitespace"
+        ):
             await formal_greeting_prompt("   ")
 
 
@@ -77,13 +79,15 @@ class TestCasualGreetingPrompt:
     @pytest.mark.asyncio
     async def test_casual_greeting_empty_name(self):
         """Test that empty name raises appropriate error."""
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+        with pytest.raises(ValueError, match=r"Input validation failed"):
             await casual_greeting_prompt("")
 
     @pytest.mark.asyncio
     async def test_casual_greeting_whitespace_name(self):
         """Test that whitespace-only name raises appropriate error."""
-        with pytest.raises(ValueError, match="Name cannot be empty"):
+        with pytest.raises(
+            ValueError, match=r"Name cannot be empty or only whitespace"
+        ):
             await casual_greeting_prompt("   ")
 
     @pytest.mark.asyncio

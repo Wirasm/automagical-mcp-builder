@@ -3,11 +3,9 @@ Configuration management for Hello World MCP server.
 Handles environment variables, transport settings, and server configuration.
 """
 
-import os
 from enum import Enum
-from typing import Optional
 
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -79,13 +77,12 @@ class HelloWorldConfig(BaseSettings):
         default=False, description="Reload server on file changes (development)"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        env_prefix = "MCP_HELLO_"
-        case_sensitive = False
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="MCP_HELLO_",
+        case_sensitive=False,
+    )
 
 
 def get_config() -> HelloWorldConfig:
@@ -117,13 +114,15 @@ def get_transport_config(config: HelloWorldConfig) -> dict:
 
 def print_config_info(config: HelloWorldConfig) -> None:
     """Print current configuration for debugging."""
-    print("=== MCP Server Configuration ===")
-    print(f"Server: {config.server_name} v{config.version}")
-    print(f"Transport: {config.transport_type.value}")
+    import sys
+    # CRITICAL: Print to stderr to avoid interfering with JSON-RPC protocol
+    print("=== MCP Server Configuration ===", file=sys.stderr)
+    print(f"Server: {config.server_name} v{config.version}", file=sys.stderr)
+    print(f"Transport: {config.transport_type.value}", file=sys.stderr)
 
     if config.transport_type in [TransportType.SSE, TransportType.WEBSOCKET]:
-        print(f"Address: {config.host}:{config.port}")
+        print(f"Address: {config.host}:{config.port}", file=sys.stderr)
 
-    print(f"Debug Mode: {config.debug_mode}")
-    print(f"Log Level: {config.log_level}")
-    print("================================")
+    print(f"Debug Mode: {config.debug_mode}", file=sys.stderr)
+    print(f"Log Level: {config.log_level}", file=sys.stderr)
+    print("================================", file=sys.stderr)

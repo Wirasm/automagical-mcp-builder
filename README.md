@@ -129,13 +129,13 @@ This will automatically:
 uv run pytest src/features/your_feature/ -v
 
 # Start the server
-uv run python src/server.py
+uv run python src/main_server.py
 
 # Test with MCP Inspector
-npx @modelcontextprotocol/inspector python src/server.py
+npx @modelcontextprotocol/inspector python src/main_server.py
 
 # Install in Claude Desktop
-mcp install src/server.py
+mcp install src/main_server.py
 ```
 
 ## Troubleshooting
@@ -153,7 +153,7 @@ mcp install src/server.py
 **Server Issues:**
 - Run `uv run pytest` to check all tests pass
 - Check logs for configuration or transport errors
-- Use debug mode: `MCP_HELLO_DEBUG_MODE=true uv run python src/server.py`
+- Use debug mode: `MCP_HELLO_DEBUG_MODE=true uv run python src/main_server.py`
 
 **Claude Code Issues:**
 - Ensure you're in the correct project directory
@@ -172,7 +172,7 @@ uv sync
 uv run pytest src/features/hello_world/ -v
 
 # Start the server
-uv run python src/server.py
+uv run python src/main_server.py
 ```
 
 ### Testing with MCP Inspector
@@ -182,7 +182,7 @@ uv run python src/server.py
 npm install -g @modelcontextprotocol/inspector
 
 # Test the server
-npx @modelcontextprotocol/inspector python src/server.py
+npx @modelcontextprotocol/inspector python src/main_server.py
 ```
 
 ### Configuration
@@ -203,7 +203,7 @@ Add this configuration to your Claude Desktop config:
   "mcpServers": {
     "hello-world": {
       "command": "uv",
-      "args": ["run", "python", "src/server.py"],
+      "args": ["run", "python", "src/main_server.py"],
       "cwd": "/absolute/path/to/automagical-mcp-builder",
       "env": {
         "MCP_HELLO_TRANSPORT_TYPE": "stdio",
@@ -226,7 +226,7 @@ export MCP_HELLO_HOST=0.0.0.0
 export MCP_HELLO_PORT=8000
 
 # Start server
-uv run python src/server.py
+uv run python src/main_server.py
 
 # Server available at http://localhost:8000/sse
 ```
@@ -240,7 +240,7 @@ export MCP_HELLO_HOST=0.0.0.0
 export MCP_HELLO_PORT=8001
 
 # Start server
-uv run python src/server.py
+uv run python src/main_server.py
 
 # Server available at ws://localhost:8001/ws
 ```
@@ -255,7 +255,7 @@ src/features/hello_world/
 ├── resources/      # MCP Resources (read-only data)
 ├── prompts/        # MCP Prompts (templates)
 ├── api/            # External API integrations
-└── server.py       # Feature's MCP server entry point
+└── {feature_name}_server.py # Feature's MCP server entry point
 ```
 
 Each component has co-located tests in `tests/` subdirectories.
@@ -267,7 +267,7 @@ Each component has co-located tests in `tests/` subdirectories.
 1. Create feature directory: `src/features/your_feature/`
 2. Implement components following the template in `hello_world/`
 3. Create co-located tests for each component
-4. Register with main server in `src/server.py`
+4. Register with main server in `src/main_server.py`
 
 ### Running Tests
 
@@ -287,12 +287,12 @@ uv run pytest src/features/*/tools/tests/
 ```bash
 # Development workflow
 uv sync                           # Install dependencies
-uv run python src/server.py      # Start server
+uv run python src/main_server.py      # Start server
 uv run pytest                    # Run tests
 uv run ruff check .              # Lint code
 
 # Testing with MCP tools
-npx @modelcontextprotocol/inspector python src/server.py
+npx @modelcontextprotocol/inspector python src/main_server.py
 ```
 
 ## Project Structure

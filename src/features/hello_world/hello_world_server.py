@@ -9,18 +9,26 @@ This server provides a simple example of MCP server implementation with:
 - Support for multiple transports (stdio, SSE, WebSocket)
 """
 
-import logging
 import sys
+from pathlib import Path
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
+# Add the project root to Python path for src imports
+# This is needed when running via Claude Desktop or other external processes
+project_root = Path(__file__).parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Import standardized logging and data types
+from src.logging_config import setup_mcp_logging, log_performance  # noqa: E402
+from src.data_types import success_response, error_response, ErrorCode  # noqa: E402
+
 # Import our feature components
 from .config import (
-    HelloWorldConfig,
     TransportType,
     get_config,
-    get_transport_config,
     print_config_info,
 )
 from .prompts.greeting_template import casual_greeting_prompt, formal_greeting_prompt
@@ -30,53 +38,104 @@ from .tools.greeting import get_server_info, say_hello
 # Get configuration
 config = get_config()
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, config.log_level.upper()), format=config.log_format
-)
-logger = logging.getLogger("hello-world-mcp")
+# Setup standardized logging
+logger = setup_mcp_logging(config)
 
 # Create the FastMCP server instance
 mcp = FastMCP(config.server_name)
 
 
 @mcp.tool()
+@log_performance(logger)
 async def say_hello_tool(name: str, greeting: Optional[str] = None) -> str:
     """
     Generate a personalized greeting message.
 
     This tool demonstrates basic MCP tool functionality by creating
-    personalized greetings for users.
+    personalized greetings for users with standardized logging and validation.
 
     Args:
         name: The name of the person to greet
         greeting: Custom greeting word (defaults to server configured greeting)
 
     Returns:
-        A formatted greeting message
+        A standardized JSON response with greeting message
     """
-    if not config.enable_greeting_tool:
-        return "Greeting tool is currently disabled."
+    logger.tool_called("say_hello_tool", name_length=len(name) if name else 0)
 
-    effective_greeting = greeting or config.default_greeting
-    return await say_hello(name, effective_greeting)
+    try:
+        # Check if tool is enabled
+        if not config.enable_greeting_tool:
+            return error_response(
+                ErrorCode.CONFIGURATION_ERROR, "Greeting tool is currently disabled"
+            ).to_json_string()
+
+        # Input validation
+        if not name or not name.strip():
+            return error_response(
+                ErrorCode.VALIDATION_ERROR,
+                "Name parameter is required and cannot be empty",
+            ).to_json_string()
+
+        # Process request
+        effective_greeting = greeting or config.default_greeting
+        result = await say_hello(name.strip(), effective_greeting)
+
+        return success_response(
+            data={"greeting": result},
+            message=f"Generated greeting for {name}",
+            metadata={
+                "greeting_word": effective_greeting,
+                "name_length": len(name.strip()),
+                "server_version": config.version,
+            },
+        ).to_json_string()
+
+    except Exception as e:
+        logger.tool_failed("say_hello_tool", str(e), 0)
+        return error_response(
+            ErrorCode.INTERNAL_ERROR, f"Failed to generate greeting: {str(e)}"
+        ).to_json_string()
 
 
 @mcp.tool()
+@log_performance(logger)
 async def get_server_info_tool() -> str:
     """
     Get information about this MCP server.
 
     Returns basic information about the server capabilities
-    and current status.
+    and current status with standardized response format.
 
     Returns:
-        Server information as a formatted string
+        JSON-formatted server information response
     """
-    if not config.enable_server_info_tool:
-        return "Server info tool is currently disabled."
+    logger.tool_called("get_server_info_tool")
 
-    return await get_server_info()
+    try:
+        # Check if tool is enabled
+        if not config.enable_server_info_tool:
+            return error_response(
+                ErrorCode.CONFIGURATION_ERROR, "Server info tool is currently disabled"
+            ).to_json_string()
+
+        # Get server information
+        server_info = await get_server_info()
+
+        return success_response(
+            data={"server_info": server_info},
+            message="Server information retrieved successfully",
+            metadata={
+                "request_timestamp": str(config.version),
+                "transport_type": config.transport_type.value,
+            },
+        ).to_json_string()
+
+    except Exception as e:
+        logger.tool_failed("get_server_info_tool", str(e), 0)
+        return error_response(
+            ErrorCode.INTERNAL_ERROR, f"Failed to retrieve server information: {str(e)}"
+        ).to_json_string()
 
 
 @mcp.resource("hello-world://status")
@@ -192,9 +251,6 @@ def main():
 
     logger.info(f"Starting {config.server_name} v{config.version}...")
     logger.info(f"Transport: {config.transport_type.value}")
-
-    # Get transport configuration
-    transport_config = get_transport_config(config)
 
     if config.transport_type == TransportType.STDIO:
         logger.info("Using stdio transport")
