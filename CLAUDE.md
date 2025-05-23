@@ -214,31 +214,12 @@ uv run pytest -v src/features/
 3. **Test file names MUST start with `test_` and match the module name**
 4. **Each `tests/` directory MUST have `__init__.py`**
 
-### Example Test Commands by Component
-
-```bash
-# Test all tools across all features
-uv run pytest src/features/*/tools/tests/
-
-# Test all resources across all features  
-uv run pytest src/features/*/resources/tests/
-
-# Test all prompts across all features
-uv run pytest src/features/*/prompts/tests/
-
-# Test all API integrations across all features
-uv run pytest src/features/*/api/tests/
-
-# Test integration (root-level tests)
-uv run pytest src/tests/
-```
 
 ## MCP Development Context
 
 **IMPORTANT: This project builds MCP (Model Context Protocol) servers using our vertical slice architecture.**
 
 ### Our MCP Framework Choice
-- **Always use FastMCP framework** for high-level MCP server development
 - **Only use Python MCP SDK** for low-level protocol customization (rare cases)
 - **Follow our feature-based organization** for all MCP servers
 
@@ -265,23 +246,8 @@ src/features/weather_api/           # Example MCP feature
 **CRITICAL: Use these exact commands for MCP development in this project:**
 
 ```bash
-# Test MCP server during development
-uv run mcp dev src/features/{feature_name}/{feature_name}_server.py
-
-# Test with MCP Inspector (visual testing)
-npx @modelcontextprotocol/inspector python src/features/{feature_name}/{feature_name}_server.py
-
 # Install MCP server in Claude Desktop for testing
-mcp install src/features/{feature_name}/{feature_name}_server.py
-
-# Run MCP-specific tests
-uv run pytest src/features/{feature_name}/
-
-# Test all MCP tools across features
-uv run pytest src/features/*/tools/tests/
-
-# Test all MCP resources across features  
-uv run pytest src/features/*/resources/tests/
+mcp install src/main_server.py
 ```
 
 ### MCP Client Integration for Testing
@@ -304,10 +270,8 @@ uv run pytest src/features/*/resources/tests/
 
 **Testing Workflow:**
 1. Develop MCP server using our vertical slice architecture
-2. Test with `uv run mcp dev src/features/{feature}/{feature}_server.py`
-3. Validate with MCP Inspector visual testing
-4. Integration test with Claude Desktop configuration
-5. Run all co-located tests: `uv run pytest src/features/{feature}/`
+2. Test with `mcp install src/main_server.py`
+3. Integration test with Claude Desktop configuration
 
 ### MCP Key Concepts (Quick Reference)
 - **Tools**: Functions LLMs can call (like POST endpoints) - implement actions
@@ -528,27 +492,7 @@ except PermissionError:
 ## Docker Deployment Standards
 
 **CRITICAL: All MCP servers MUST support containerized deployment for production environments.**
-
-### Docker Configuration Requirements
-
-**Multi-Stage Dockerfile Pattern:**
-```dockerfile
-# Required: Multi-stage build with UV package manager
-FROM python:3.12-slim-bookworm AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.5.18 /uv /uvx /bin/
-
-# Required: UV environment variables
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
-
-# Required: Dependency caching
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-editable
-
-# Required: Production stage with minimal footprint
-FROM python:3.12-slim-bookworm AS production
-COPY --from=builder /app/.venv /app/.venv
-```
+Base already setup in Dockerfile and docker-compose.yml
 
 ### Container Development Commands
 
@@ -644,7 +588,6 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 ## Important Notes
 
 ### What NOT to do
-- **NEVER** use pip or conda - only use uv for package management
 - **NEVER** commit without running tests first
 - **NEVER** build complex solutions when simple ones will work
 - **NEVER** add features without corresponding tests

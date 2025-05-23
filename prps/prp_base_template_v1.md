@@ -16,6 +16,11 @@ The Model Context Protocol (MCP) is an open standard that enables Large Language
 5. Include examples from the official MCP documentation
 6. Reference security best practices and authentication patterns
 7. Fill out all sections, using "N/A" only when a section truly doesn't apply
+8. There is example implementation of a hello world server in the hello_world feature. Use this as a reference for when filling out the sections of this template. 
+9. Ensure that you remove the hello world routing in src/main_server.py before you implement your MCP server, to avoud it breaking your implementation.
+10. We use the official Python SDK for MCP servers. You can find the documentation here: https://github.com/claude-ai/mcp-sdk-python
+11. Always keep KISS in mind when filling out this template. Do not overcomplicate things. you can always add more features later.
+12. When building an API integration always start by writing a client that can interact with the API. ensure you can conntect to the API and get data from it before you start building the MCP server. (ensure .env variables are set)
 
 ---
 
@@ -48,16 +53,16 @@ Example: "Build an MCP server that exposes GitHub repository data and operations
 - **Target LLM Clients**: [Claude Desktop, Cursor, MCP Inspector, etc.]
 
 ### Server Capabilities
-- [Authentication/authorization requirements if any]
-- [External APIs or services to integrate with]
+- [Authentication/authorization requirements] (only if applicable)
+- [External APIs or services to integrate with] (only if applicable)
 - [Data transformation or processing logic needed]
 - [Real-time vs. cached data requirements]
 - [Error handling and fallback behaviors]
 
 ### User Experience
 - [How users will discover and use the server's capabilities]
-- [Expected interaction patterns with LLMs]
-- [Integration requirements with existing workflows]
+- [Expected interaction patterns with LLMs and clients]
+- [Integration requirements with existing workflows] (if applicable)
 
 ## MCP Server Architecture
 
@@ -224,8 +229,8 @@ src/features/{feature_name}/        # Replace {feature_name} with actual feature
 
 ### MCP Official Documentation
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/) (read_only) - Core protocol specification
-- [MCP Python SDK Documentation](https://modelcontextprotocol.io/quickstart/server) (read_only) - Official Python SDK guide
-- [FastMCP Documentation](https://gofastmcp.com/) (read_only) - High-level Python framework documentation
+- [MCP Python SDK Documentation](https://modelcontextprotocol.io/quickstart/server) (read_only) - Official Python SDK 
+- [Official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) (read_only) - Official example implementation
 - [MCP Transport Documentation](https://modelcontextprotocol.io/docs/concepts/transports) (read_only) - Transport mechanisms
 
 ### Example MCP Servers
@@ -245,7 +250,9 @@ src/features/{feature_name}/        # Replace {feature_name} with actual feature
 
 ### Core Server Implementation
 
-1. `{feature_name}_server.py` - Feature's FastMCP server setup
+1. Start with removing the hello world routing in src/main_server.py before you implement your MCP server, to avoid it breaking your implementation.
+
+2. `{feature_name}_server.py` - Feature's FastMCP server setup
 
 ```python
 """
@@ -278,7 +285,7 @@ mcp = FastMCP(
 # Implementation follows FastMCP patterns
 ```
 
-2. `mcp_server/tools/[tool_name].py` - Individual tool implementations
+3. `mcp_server/tools/[tool_name].py` - Individual tool implementations
 
 ```python
 """
@@ -314,7 +321,7 @@ async def tool_function(
     return result
 ```
 
-3. `mcp_server/resources/[resource_name].py` - Resource implementations
+4. `mcp_server/resources/[resource_name].py` - Resource implementations
 
 ```python
 """
@@ -346,7 +353,7 @@ async def resource_function(
 
 ### Configuration and Authentication
 
-4. `mcp_server/config/settings.py` - Configuration management
+5. `mcp_server/config/settings.py` - Configuration management
 
 ```python
 """
@@ -386,7 +393,7 @@ def get_settings() -> Settings:
     return Settings()
 ```
 
-5. `mcp_server/auth/oauth_handler.py` - Authentication (if required)
+6. `mcp_server/auth/oauth_handler.py` - Authentication (if required)
 
 ```python
 """
@@ -416,7 +423,7 @@ class OAuthHandler:
 
 ### Testing and Validation
 
-6. `tests/test_{feature_name}_server.py` - Server integration tests
+7. `tests/test_{feature_name}_server.py` - Server integration tests
 
 ```python
 """
@@ -690,28 +697,29 @@ return error_response(
 ## Validation Gates
 
 ### MCP Protocol Compliance
-- [ ] Server implements correct MCP protocol version
-- [ ] All tools have proper type annotations and docstrings
-- [ ] Resources follow URI template patterns correctly
-- [ ] Prompts are properly structured and parameterized
-- [ ] Server handles initialization and lifecycle correctly
+- [ ] Server implements correct/latest MCP protocol version
+- [ ] All tools MUST have proper type annotations and docstrings
+- [ ] Resources MUST follow URI template patterns correctly
+- [ ] Prompts MUST be properly structured and parameterized
+- [ ] Server MUST handle initialization and lifecycle correctly
 
 ### Transport Implementation
-- [ ] Selected transport (stdio/SSE/WebSocket) works correctly
-- [ ] Message serialization/deserialization functions properly
-- [ ] Error messages are properly formatted and informative
-- [ ] Connection handling is robust with proper cleanup
+- [ ] Selected transport (stdio/SSE/WebSocket) MUST work correctly
+- [ ] Message serialization/deserialization MUST functions properly
+- [ ] Error messages MUST be properly formatted and informative
+- [ ] Connection handling MUST be robust with proper cleanup
 
 ### Tool Functionality
-- [ ] All tools execute successfully with valid inputs
+- [ ] All tools tests must pass running uv run pytest
 - [ ] Tools handle invalid inputs gracefully with clear error messages
 - [ ] Tools perform expected side effects correctly
 - [ ] Tool responses are in the expected format for LLM consumption
 - [ ] All tools use standardized MCPToolResponse format
-- [ ] All tools implement proper input validation with Pydantic models
+- [ ] All tools implement proper input validation with PydanticV2 models
 - [ ] All tools use standard ErrorCode enumeration for errors
 
 ### Resource Access
+- [ ] All resources tests must pass running uv run pytest
 - [ ] All resources return data in expected format
 - [ ] Parameterized resources handle URI template variables correctly
 - [ ] Resource content is appropriate for LLM context consumption
@@ -729,7 +737,7 @@ return error_response(
 ### Logging and Observability
 - [ ] Server uses standardized logging from src/logging_config.py
 - [ ] All tools implement @log_performance decorator
-- [ ] Tool execution logging includes start, completion, and error events
+- [ ] All tools logging includes start, completion, and error events
 - [ ] External API calls are logged with timing and status codes
 - [ ] Security events are properly logged and categorized
 - [ ] Structured logging context is used for related operations
@@ -747,10 +755,9 @@ return error_response(
 - [ ] Type hints are complete and accurate throughout
 
 ### Client Integration
-- [ ] Server can be configured in Claude Desktop successfully
-- [ ] MCP Inspector can connect and test all functionality
-- [ ] Server works with other MCP clients (Cursor, etc.)
-- [ ] Client configuration examples are accurate
+- [ ] Server can be configured in Claude Desktop successfully (user will test at end of implementation)
+- [ ] Server works with other MCP clients (Cursor, etc.) (user will test at end of implementation)
+- [ ] Client configuration examples are accurate 
 
 ### Pytests
 - [ ] All tests pass successfully
@@ -768,21 +775,20 @@ return error_response(
 
 **Implementation Steps:**
 - Create feature directory following CLAUDE.md vertical slice pattern
-- Set up FastMCP server following our project standards
-- Implement server entry point in `src/features/{feature_name}/{feature_name}_server.py`
+- Set up the MCP server following our project standards
+- Implement server entry point in `src/features/{feature_name}/{feature_name}_server.py` register it in src/main_server.py
 
 **Testing Approach:**
 - Use our project's MCP testing commands from CLAUDE.md
-- Verify server follows our architectural patterns
+- Verify server follows our project's architectural patterns
 
 **Expected Results:**
 - Server initializes using our project structure
-- MCP Inspector can connect using our testing workflow
 
 **Validation Command:**
 ```bash
 # Use our project's testing pattern
-uv run mcp dev src/main_server.py
+mcp install src/main_server.py
 ```
 
 ### 2. Tool Implementation and Testing
@@ -808,19 +814,6 @@ uv run pytest src/features/{feature_name}/tools/tests/
 
 ### 3. Resource Implementation and Testing
 
-**Implementation Steps:**
-- Implement resources in `src/features/{feature_name}/resources/`
-- Create co-located tests following project standards
-- Follow our URI template and caching patterns
-
-**Testing Approach:**
-- Test resources using our project testing commands
-- Verify resource URIs follow our patterns
-
-**Expected Results:**
-- Resources integrate with our project structure
-- Resource tests follow our co-location standards
-
 **Validation Command:**
 ```bash
 # Test resources using our project pattern  
@@ -829,18 +822,6 @@ uv run pytest src/features/{feature_name}/resources/tests/
 
 ### 4. Integration Testing with Our Clients
 
-**Implementation Steps:**
-- Configure server with Claude Desktop using our config pattern
-- Test with our MCP Inspector workflow
-- Validate integration with our development tools
-
-**Testing Approach:**
-- Follow our Claude Desktop integration pattern from CLAUDE.md
-- Use our established MCP testing workflow
-
-**Expected Results:**
-- Server works with our Claude Desktop configuration
-- Integration follows our project's testing standards
 
 **Validation Command:**
 ```bash
@@ -849,19 +830,6 @@ uv run pytest src/features/{feature_name}/
 ```
 
 ### 5. Production Readiness
-
-**Implementation Steps:**
-- Follow our deployment patterns and security standards
-- Implement monitoring according to our project requirements
-- Document following our project documentation standards
-
-**Testing Approach:**
-- Use our project's production testing checklist
-- Follow our deployment validation process
-
-**Expected Results:**
-- Server meets our project's production standards
-- Documentation follows our project templates
 
 **Validation Command:**
 ```bash
@@ -883,61 +851,16 @@ uv run pytest src/features/{feature_name}/ -v
 - **Health Checks**: Implement health endpoints for deployment monitoring
 - **Tracing**: Distributed tracing for complex workflows
 
-### Deployment Considerations
-- **Container Support**: Dockerize server for consistent deployment
-- **Environment Management**: Support multiple deployment environments
-- **Secret Management**: Secure handling of API keys and credentials
-- **Scaling**: Design for horizontal scaling if needed
-
 ### Documentation Requirements
+- **Update README.md**: remove hello world example and replace with your own
 - **API Documentation**: Auto-generated from tool/resource schemas
-- **Usage Examples**: Clear examples for each server capability
-- **Integration Guides**: Step-by-step client integration instructions
-- **Troubleshooting**: Common issues and resolution steps
+- **Usage Examples**: in README.md
 
-### Backward Compatibility
-- **Protocol Versioning**: Handle MCP protocol version changes
-- **Schema Evolution**: Manage changes to tool/resource schemas
-- **Client Compatibility**: Test with multiple MCP client versions
-- **Migration Paths**: Provide upgrade paths for server changes
-
-### Security Considerations
-- **Input Validation**: Thorough validation of all user inputs
-- **Output Sanitization**: Ensure outputs don't contain sensitive data
-- **Access Control**: Implement proper authorization for server capabilities
-- **Audit Logging**: Log security-relevant events for compliance
 
 ### Testing Strategy
 - **Unit Tests**: Test individual components in isolation
 - **Integration Tests**: Test server as a complete system
 - **Contract Tests**: Ensure MCP protocol compliance
-- **Performance Tests**: Validate server performance characteristics
-- **Security Tests**: Test authentication and authorization flows
-
----
-
-## MCP Implementation Resources
-
-### Essential Documentation
-- [MCP Specification](https://spec.modelcontextprotocol.io/) - Complete protocol specification
-- [Python SDK Documentation](https://modelcontextprotocol.io/quickstart/server) - Official Python implementation guide
-- [FastMCP Framework](https://gofastmcp.com/) - High-level Python framework documentation
-- [Transport Mechanisms](https://modelcontextprotocol.io/docs/concepts/transports) - stdio, SSE, WebSocket details
-
-### Reference Implementations
-- [Official MCP Servers](https://github.com/modelcontextprotocol/servers) - Production-ready server examples
-- [Weather Server Tutorial](https://modelcontextprotocol.io/quickstart/server) - Step-by-step implementation guide
-- [Community MCP Servers](https://github.com/punkpeye/awesome-mcp-servers) - Community-maintained server collection
-
-### Development Tools
-- [MCP Inspector](https://github.com/modelcontextprotocol/inspector) - Visual testing and debugging tool
-- [Claude Desktop](https://claude.ai/download) - Primary MCP client for testing
-- [mcp-remote](https://github.com/modelcontextprotocol/mcp-remote) - Proxy for remote server testing
-
-### Security and Best Practices
-- [MCP Security Guidelines](https://modelcontextprotocol.io/docs/tools/debugging) - Official security guidance
-- [Authentication Patterns](https://developers.cloudflare.com/agents/) - OAuth implementation examples
-- [Secrets Management](https://infisical.com/blog/managing-secrets-mcp-servers) - Best practices for credential handling
 
 ---
 
@@ -982,9 +905,3 @@ This PRP assumes implementation within the MCP Builder project structure defined
   }
 }
 ```
-
-**Project Integration Notes:**
-- This server will be implemented as a feature within the existing MCP Builder project
-- Follow all patterns and standards established in CLAUDE.md
-- Use our established testing and validation workflows
-- Integrate with our existing UV package management and project structure
