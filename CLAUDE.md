@@ -1,4 +1,6 @@
-# MCP Builder Project
+# MCP Builder Project - Implementation Guide
+
+This guide provides implementation patterns and standards for building MCP servers. For WHAT to build, see the PRP (Product Requirement Prompt) documents.
 
 ## Core Principles
 
@@ -130,38 +132,12 @@ uv run python src/main_server.py
 
 ### Feature Development Pattern
 
-When adding a new MCP server feature (e.g., "github_integration"):
+When adding a new MCP feature:
 
-```
-src/features/github_integration/
-├── __init__.py
-├── api/
-│   ├── __init__.py
-│   ├── github_api.py           # GitHub API client
-│   └── tests/
-│       ├── __init__.py
-│       └── test_github_api.py  # Test GitHub API client
-├── tools/ 
-│   ├── __init__.py
-│   ├── create_issue.py         # MCP tool: create GitHub issue
-│   ├── get_repo_info.py        # MCP tool: get repository info
-│   └── tests/
-│       ├── __init__.py
-│       ├── test_create_issue.py    # Test create issue tool
-│       └── test_get_repo_info.py   # Test repo info tool
-├── resources/
-│   ├── __init__.py
-│   ├── repo_files.py           # MCP resource: repository files
-│   └── tests/
-│       ├── __init__.py
-│       └── test_repo_files.py  # Test repo files resource
-└── prompts/
-    ├── __init__.py
-    ├── code_review.py          # MCP prompt: code review template
-    └── tests/
-        ├── __init__.py
-        └── test_code_review.py # Test code review prompt
-```
+1. Create feature directory: `src/features/{feature_name}/`
+2. Add to `src/main_server.py` routing
+3. Follow the hello_world example structure
+4. Include co-located tests for all components
 
 ## Development Commands
 
@@ -603,100 +579,19 @@ except PermissionError:
 - **Test both success and error response formats**
 - **Test input validation thoroughly**
 
-## Docker Deployment Standards
+## Docker Support
 
-**CRITICAL: All MCP servers MUST support containerized deployment for production environments.**
-Base already setup in Dockerfile and docker-compose.yml
-
-### Container Development Commands
-
-**MANDATORY Docker commands for all MCP implementations:**
+See `docs/docker-deployment.md` for containerization details. Basic usage:
 
 ```bash
-# Build optimized production image
-docker build --target production -t mcp-server:latest .
+# Development
+./scripts/docker-run.sh dev
 
-# Development with hot reloading
-docker-compose --profile development up mcp-server-dev
-
-# Production deployment
+# Production
 docker-compose up -d mcp-server
 
-# SSE transport for web integrations
-docker-compose up -d mcp-server-sse
-
-# Containerized testing
-docker-compose --profile testing run mcp-server-test
-
-# Container validation
-./scripts/docker-run.sh validate
-```
-
-### Transport Configuration for Containers
-
-**Stdio Transport (Claude Desktop):**
-```bash
-# Environment configuration
-MCP_HELLO_TRANSPORT_TYPE=stdio
-MCP_HELLO_LOG_LEVEL=INFO
-```
-
-**SSE Transport (Web Applications):**
-```bash
-# Port exposure required
-docker run -p 8000:8000 -e MCP_HELLO_TRANSPORT_TYPE=sse mcp-server:latest
-```
-
-**WebSocket Transport (Real-time):**
-```bash
-# WebSocket configuration
-docker run -p 8001:8001 -e MCP_HELLO_TRANSPORT_TYPE=websocket mcp-server:latest
-```
-
-### Container Security Standards
-
-**MANDATORY security requirements:**
-
-1. **Non-root execution**: All containers MUST run as non-root user
-2. **Minimal base images**: Use slim-bookworm for production
-3. **Resource limits**: Configure memory and CPU limits
-4. **Health checks**: Implement proper health monitoring
-5. **Secrets management**: Use environment variables or Docker secrets
-
-```dockerfile
-# Security requirements
-RUN groupadd -r mcp && useradd -r -g mcp mcp
-USER mcp
-
-# Health check implementation
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)" || exit 1
-```
-
-### Production Deployment Requirements
-
-**Container orchestration support:**
-- Docker Compose for local development
-- Kubernetes manifests for cloud deployment
-- Health checks for load balancer integration
-- Resource limits for cluster management
-
-**Monitoring and observability:**
-- Structured logging to stdout
-- Prometheus metrics endpoints (if applicable)
-- Health check endpoints
-- Performance monitoring integration
-
-### Docker Helper Script Requirements
-
-**MANDATORY: All MCP features MUST include docker-run.sh script with:**
-
-```bash
-./scripts/docker-run.sh build      # Build images
-./scripts/docker-run.sh dev        # Development server
-./scripts/docker-run.sh prod       # Production server
-./scripts/docker-run.sh test       # Run tests
-./scripts/docker-run.sh validate   # Validate setup
+# Testing
+./scripts/docker-run.sh test
 ```
 
 ## Important Notes
@@ -726,48 +621,14 @@ git add .
 git commit -m "feat: add new MCP tool for X functionality"
 ```
 
-## Common Tasks
+## Quick Reference
 
-### Adding a New MCP Feature (Complete Workflow)
-
-**Example: Adding a "weather_api" feature**
-
-1. **Create Feature Structure**:
-```bash
-mkdir -p src/features/weather_api/{api,tools,resources,prompts}
-mkdir -p src/features/weather_api/{api/tests,tools/tests,resources/tests,prompts/tests}
-touch src/features/weather_api/__init__.py
-touch src/features/weather_api/{api,tools,resources,prompts}/__init__.py
-touch src/features/weather_api/{api/tests,tools/tests,resources/tests,prompts/tests}/__init__.py
-```
-
-2. **Implement Components** (each with co-located test):
-   - `src/features/weather_api/api/weather_client.py` + `tests/test_weather_client.py`
-   - `src/features/weather_api/tools/get_forecast.py` + `tests/test_get_forecast.py`
-   - `src/features/weather_api/resources/current_weather.py` + `tests/test_current_weather.py`
-   - `src/features/weather_api/prompts/weather_summary.py` + `tests/test_weather_summary.py`
-
-3. **Validate Structure**:
-```bash
-# Ensure all tests run
-uv run pytest src/features/weather_api/
-
-# Check specific component types
-uv run pytest src/features/weather_api/tools/tests/
-uv run pytest src/features/weather_api/resources/tests/
-```
-
-4. **Register with Main Server** in `src/main_server.py`
-
-### Adding a Single MCP Tool
-
-**Example: Adding a new tool to existing feature**
-
-1. **Create Tool File**: `src/features/github_integration/tools/close_issue.py`
-2. **Create Test File**: `src/features/github_integration/tools/tests/test_close_issue.py`
-3. **Implement Tool** following FastMCP patterns
-4. **Write Comprehensive Tests**
-5. **Validate**: `uv run pytest src/features/github_integration/tools/tests/test_close_issue.py`
+### Adding a New MCP Feature
+1. Create feature directory: `src/features/{feature_name}/`
+2. Copy structure from hello_world example
+3. Implement tools, resources, prompts with tests
+4. Register in `src/main_server.py`
+5. Test: `uv run pytest src/features/{feature_name}/`
 
 ### Adding Dependencies
 ```bash
@@ -781,16 +642,6 @@ uv add --dev package-name
 uv sync
 ```
 
-### Debugging MCP Servers
-```bash
-# Use MCP Inspector for visual testing
-npx @modelcontextprotocol/inspector python src/main_server.py
-
-# Use mcp dev for FastMCP servers
-mcp dev src/main_server.py
-
-# Check server logs and errors in terminal output
-```
 
 ## Environment Setup
 
@@ -814,17 +665,15 @@ uv run python src/main_server.py
 
 ## Troubleshooting
 
-### Common Issues
-- **ImportError**: Make sure to run `uv sync` after pulling changes
-- **Module not found**: Check if you're using `uv run` prefix for commands
-- **Test failures**: Ensure all dependencies are installed with `uv sync`
-- **MCP connection issues**: Verify server syntax and MCP Inspector connectivity
+- **ImportError**: Run `uv sync` after pulling changes
+- **Module not found**: Use `uv run` prefix for commands
+- **Test failures**: Check `uv sync` and run tests with `-v` for details
+- **MCP connection issues**: Test with MCP Inspector first
 
-### When Adding New Features
-1. Think through the vertical slice architecture
-2. Plan the tests first (TDD approach recommended)
-3. Implement the minimal viable solution (YAGNI principle)
-4. Keep it simple (KISS principle)
-5. Ensure it follows dependency inversion where applicable
+## Summary
 
-Remember: This project is about building MCP servers efficiently using specification-driven development through PRPs. Every feature should have a clear purpose and comprehensive tests.
+This guide covers HOW to implement MCP servers using project patterns. For WHAT to build:
+1. Create a PRP document using the template in `prps/prp_base_template_v1.md`
+2. Focus the PRP on requirements and specifications
+3. Reference this guide for implementation patterns
+
