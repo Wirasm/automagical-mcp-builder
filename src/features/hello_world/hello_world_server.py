@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context
 
 # Add the project root to Python path for src imports
 # This is needed when running via Claude Desktop or other external processes
@@ -44,10 +44,14 @@ logger = setup_mcp_logging(config)
 # Create the FastMCP server instance
 mcp = FastMCP(config.server_name)
 
+# Note: All tools below use the * syntax before ctx: Context to make it a required
+# keyword-only argument. This ensures proper parameter handling by the MCP framework
+# and enables rich client communication features.
+
 
 @mcp.tool()
 @log_performance(logger)
-async def say_hello_tool(name: str, greeting: Optional[str] = None) -> str:
+async def say_hello_tool(name: str, greeting: Optional[str] = None, *, ctx: Context) -> str:
     """
     Generate a personalized greeting message.
 
@@ -57,10 +61,14 @@ async def say_hello_tool(name: str, greeting: Optional[str] = None) -> str:
     Args:
         name: The name of the person to greet
         greeting: Custom greeting word (defaults to server configured greeting)
+        ctx: MCP context for client communication (required)
 
     Returns:
         A standardized JSON response with greeting message
     """
+    # Use MCP context logging for client visibility
+    await ctx.info(f"Generating greeting for {name}")
+    
     logger.tool_called("say_hello_tool", name_length=len(name) if name else 0)
 
     try:
@@ -79,7 +87,14 @@ async def say_hello_tool(name: str, greeting: Optional[str] = None) -> str:
 
         # Process request
         effective_greeting = greeting or config.default_greeting
+        
+        # Report progress for demonstration (useful for longer operations)
+        await ctx.report_progress(0.5, "Processing greeting...")
+        
         result = await say_hello(name.strip(), effective_greeting)
+        
+        # Log completion to client
+        await ctx.info(f"Successfully generated greeting for {name}")
 
         return success_response(
             data={"greeting": result},
@@ -100,16 +115,22 @@ async def say_hello_tool(name: str, greeting: Optional[str] = None) -> str:
 
 @mcp.tool()
 @log_performance(logger)
-async def get_server_info_tool() -> str:
+async def get_server_info_tool(*, ctx: Context) -> str:
     """
     Get information about this MCP server.
 
     Returns basic information about the server capabilities
     and current status with standardized response format.
 
+    Args:
+        ctx: MCP context for client communication (required)
+
     Returns:
         JSON-formatted server information response
     """
+    # Use MCP context logging for client visibility
+    await ctx.info("Retrieving server information...")
+    
     logger.tool_called("get_server_info_tool")
 
     try:
@@ -121,6 +142,9 @@ async def get_server_info_tool() -> str:
 
         # Get server information
         server_info = await get_server_info()
+        
+        # Log completion to client
+        await ctx.info("Server information retrieved successfully")
 
         return success_response(
             data={"server_info": server_info},
@@ -199,6 +223,97 @@ async def get_config_resource() -> str:
     }
 
     return json.dumps(safe_config, indent=2)
+
+
+@mcp.tool()
+@log_performance(logger)
+async def process_greeting_with_context(name: str, style: str = "formal", *, ctx: Context) -> str:
+    """
+    Advanced greeting processor demonstrating full MCP Context capabilities.
+    
+    This tool showcases all MCP Context features including logging, progress
+    reporting, resource reading, and LLM sampling.
+    
+    Args:
+        name: The name of the person to greet
+        style: Greeting style - "formal", "casual", or "creative"
+        ctx: MCP context for advanced client communication (required)
+        
+    Returns:
+        A contextually-aware greeting message
+    """
+    logger.tool_called("process_greeting_with_context", style=style)
+    
+    try:
+        # Step 1: Log start and validate input
+        await ctx.info(f"Starting advanced greeting generation for {name} with {style} style")
+        await ctx.report_progress(0.1, "Validating input...")
+        
+        if not name or not name.strip():
+            return error_response(
+                ErrorCode.VALIDATION_ERROR,
+                "Name parameter is required"
+            ).to_json_string()
+            
+        # Step 2: Check if we can read any user preferences (demonstration)
+        if style == "creative":
+            await ctx.report_progress(0.3, "Checking for creative inspiration...")
+            try:
+                # Example: Try to read a resource for context
+                # In a real implementation, this might read user preferences
+                await ctx.debug(f"Attempting to generate creative greeting for {name}")
+                
+                # Step 3: Use LLM sampling for creative greetings
+                await ctx.report_progress(0.5, "Generating creative greeting with LLM...")
+                
+                prompt = f"Generate a creative, unique greeting for someone named {name}. Make it memorable and fun!"
+                
+                try:
+                    llm_result = await ctx.sample(prompt)
+                    if llm_result and hasattr(llm_result, 'text'):
+                        await ctx.info("Successfully generated creative greeting using LLM")
+                        return success_response(
+                            data={"greeting": llm_result.text},
+                            message="Generated creative greeting with LLM assistance",
+                            metadata={"style": "creative", "llm_generated": True}
+                        ).to_json_string()
+                except Exception as llm_error:
+                    await ctx.warning(f"LLM sampling failed, falling back to template: {str(llm_error)}")
+                    
+            except Exception as e:
+                await ctx.warning(f"Could not access advanced features: {str(e)}")
+        
+        # Step 4: Generate greeting based on style
+        await ctx.report_progress(0.7, f"Generating {style} greeting...")
+            
+        if style == "formal":
+            greeting = f"Good day, {name}. It is a pleasure to make your acquaintance."
+        elif style == "casual":
+            greeting = f"Hey {name}! Great to see you!"
+        else:
+            greeting = f"Hello {name}! Welcome to our MCP server."
+            
+        # Step 5: Log completion
+        await ctx.report_progress(1.0, "Greeting generation complete")
+        await ctx.info(f"Successfully generated {style} greeting")
+            
+        return success_response(
+            data={"greeting": greeting},
+            message=f"Generated {style} greeting for {name}",
+            metadata={
+                "style": style,
+                "name_length": len(name),
+                "llm_generated": False
+            }
+        ).to_json_string()
+        
+    except Exception as e:
+        logger.tool_failed("process_greeting_with_context", str(e), 0)
+        await ctx.error(f"Failed to generate greeting: {str(e)}")
+        return error_response(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to process greeting: {str(e)}"
+        ).to_json_string()
 
 
 @mcp.prompt()

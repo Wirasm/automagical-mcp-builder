@@ -92,22 +92,45 @@ Example: "Build an MCP server that exposes GitHub repository data and operations
 #### Tools (Model-Controlled)
 When building tools, always expose docstrings and type hints as these are used by the client and llm to understand the tool's purpose and parameters. read more about this in the MCP documentation.
 
+**CRITICAL: All tools MUST include the MCP Context parameter as a required keyword-only argument (using the `*` syntax) to enable client communication, progress reporting, and advanced features.**
+
 [List each tool the LLM can call - these are like POST endpoints]
 ```python
-# Example tool implementation pattern:
+# Example tool implementation pattern with full Context usage:
+from mcp.server.fastmcp import Context
+
 @mcp.tool()
-def tool_name(param1: str, param2: int) -> str:
+async def tool_name(param1: str, param2: int, *, ctx: Context) -> str:
     """
     Tool description that the LLM will see
     
     Args:
         param1: Description of parameter
         param2: Description of parameter
+        ctx: MCP context for client communication (required)
     
     Returns:
         Description of return value
     """
+    # Log to client for visibility
+    await ctx.info(f"Processing {param1} with value {param2}")
+    await ctx.report_progress(0.1, "Starting processing...")
+    
     # Implementation logic here
+    try:
+        # For long operations, report progress
+        await ctx.report_progress(0.5, "Halfway complete...")
+        
+        result = process_data(param1, param2)
+        
+        # Log completion
+        await ctx.report_progress(1.0, "Processing complete")
+        await ctx.info("Successfully processed data")
+            
+    except Exception as e:
+        await ctx.error(f"Processing failed: {str(e)}")
+        raise
+    
     return result
 ```
 
@@ -292,33 +315,75 @@ mcp = FastMCP(
 Tool implementation for [TOOL_PURPOSE].
 Provides [TOOL_FUNCTIONALITY] to LLMs.
 """
-from fastmcp import Context
+from mcp.server.fastmcp import Context
 from typing import [Type annotations]
+from src.data_types import success_response, error_response, ErrorCode
+from src.logging_config import log_performance
 
+@mcp.tool()
+@log_performance(logger)
 async def tool_function(
     param1: str,
     param2: int,
+    *,
     ctx: Context
-) -> [ReturnType]:
+) -> str:
     """
     Tool description for LLM consumption.
     
     Args:
         param1: Parameter description
         param2: Parameter description  
-        ctx: MCP context for logging, progress, etc.
+        ctx: MCP context for client communication (required)
     
     Returns:
-        Return value description
+        Standardized JSON response string
     """
-    # Log progress to client
-    await ctx.info(f"Processing {param1}...")
+    # Use dual logging strategy
+    logger.tool_called("tool_function", param1_length=len(param1))
     
-    # Implementation logic
-    result = process_data(param1, param2)
-    
-    # Return structured response
-    return result
+    try:
+        # Client-visible logging
+        await ctx.info(f"Processing {param1}...")
+        await ctx.report_progress(0.1, "Initializing...")
+        
+        # Input validation
+        if not param1.strip():
+            return error_response(
+                ErrorCode.VALIDATION_ERROR,
+                "param1 cannot be empty"
+            ).to_json_string()
+        
+        # For long operations, use progress reporting
+        await ctx.report_progress(0.5, "Processing data...")
+            
+        # Implementation logic
+        result = await process_data(param1, param2)
+        
+        # Advanced Context features (when applicable):
+        # 1. Read resources: data = await ctx.read_resource("resource://uri")
+        # 2. LLM sampling: response = await ctx.sample("Generate text for...")
+        # 3. Debug logging: await ctx.debug("Detailed debug info")
+        # 4. Warnings: await ctx.warning("Non-critical issue detected")
+        
+        # Report completion
+        await ctx.report_progress(1.0, "Complete")
+        await ctx.info("Successfully processed request")
+        
+        # Return standardized response
+        return success_response(
+            data=result,
+            message=f"Processed {param1} successfully",
+            metadata={"param2": param2}
+        ).to_json_string()
+        
+    except Exception as e:
+        logger.tool_failed("tool_function", str(e), 0)
+        await ctx.error(f"Processing failed: {str(e)}")
+        return error_response(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to process: {str(e)}"
+        ).to_json_string()
 ```
 
 4. `mcp_server/resources/[resource_name].py` - Resource implementations
@@ -451,6 +516,87 @@ async def test_resource_access():
     """Test resources return expected data"""
     # Test resource access
     pass
+```
+
+## MCP Context Capabilities
+
+**CRITICAL: This section documents the MCP Context features that MUST be leveraged in tool implementations.**
+
+### Context Parameter Usage
+
+All tools MUST include the Context parameter as a required keyword-only argument. The `*` syntax before `ctx: Context` makes it keyword-only, ensuring proper parameter handling by the MCP framework:
+
+1. **Client-Visible Logging**
+   - `await ctx.debug()` - Detailed debugging information
+   - `await ctx.info()` - General operational messages  
+   - `await ctx.warning()` - Important notices
+   - `await ctx.error()` - Error conditions
+
+2. **Progress Reporting**
+   - `await ctx.report_progress(progress: float, message: str)`
+   - Progress should be 0.0 to 1.0
+   - Essential for operations > 2 seconds
+
+3. **Resource Access**
+   - `await ctx.read_resource(uri: str)` - Read server resources
+   - Enables cross-resource data access
+
+4. **LLM Sampling** (when client supports it)
+   - `await ctx.sample(prompt: str)` - Request LLM generation
+   - Useful for content generation, summarization
+
+### Context Implementation Pattern
+
+```python
+@mcp.tool()
+async def advanced_tool(
+    primary_param: str,
+    options: Dict[str, Any] = None,
+    *,
+    ctx: Context  # Required parameter
+) -> str:
+    """Tool demonstrating full Context usage."""
+    
+    # Start with client notification
+    await ctx.info(f"Starting processing for {primary_param}")
+    await ctx.report_progress(0.0, "Initializing...")
+    
+    try:
+        # Phase 1: Validation
+        await ctx.report_progress(0.2, "Validating input...")
+        await ctx.debug(f"Input size: {len(primary_param)}")
+        
+        # Phase 2: Processing
+        await ctx.report_progress(0.5, "Processing data...")
+        
+        # Example: Read additional context from resources
+        if options and options.get("use_context"):
+            try:
+                context_data = await ctx.read_resource("myserver://context/default")
+                await ctx.info("Successfully loaded additional context")
+            except Exception as e:
+                await ctx.warning(f"Could not load context: {str(e)}")
+        
+        # Phase 3: Advanced features (if applicable)
+        if options and options.get("use_llm"):
+            try:
+                summary = await ctx.sample(f"Summarize this data: {primary_param[:200]}")
+                await ctx.info("Generated summary using LLM")
+            except Exception as e:
+                await ctx.warning(f"LLM sampling unavailable: {str(e)}")
+        
+        # Complete
+        await ctx.report_progress(1.0, "Processing complete")
+        await ctx.info("Successfully completed all operations")
+            
+        return success_response(
+            data={"result": "processed"},
+            message="Operation completed successfully"
+        ).to_json_string()
+        
+    except Exception as e:
+        await ctx.error(f"Operation failed: {str(e)}")
+        raise
 ```
 
 ## Implementation Notes
@@ -717,6 +863,11 @@ return error_response(
 - [ ] All tools use standardized MCPToolResponse format
 - [ ] All tools implement proper input validation with PydanticV2 models
 - [ ] All tools use standard ErrorCode enumeration for errors
+- [ ] All tools include Context parameter as required argument (using * syntax)
+- [ ] Tools use Context for all client-visible logging and progress reporting
+- [ ] Long-running operations (>2s) implement detailed progress reporting via Context
+- [ ] Tools use appropriate Context log levels (debug, info, warning, error)
+- [ ] Tools demonstrate advanced Context features where applicable (resource reading, LLM sampling)
 
 ### Resource Access
 - [ ] All resources tests must pass running uv run pytest

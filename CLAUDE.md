@@ -278,6 +278,120 @@ mcp install src/main_server.py
 - **Resources**: Read-only data sources (like GET endpoints) - provide data  
 - **Prompts**: Reusable templates for LLM interactions - guide usage
 - **Transport**: stdio (local testing), SSE (remote deployment)
+- **Context**: MCP Context parameter provides client communication capabilities
+
+## MCP Context Usage
+
+**CRITICAL: All MCP tools SHOULD include the Context parameter to enable rich client communication.**
+
+### Dual Logging Strategy
+
+This project uses a dual logging approach for comprehensive observability:
+
+1. **MCP Context Logging** - For client-visible messages and progress
+2. **Custom Structured Logging** - For server-side debugging and metrics
+
+### MCP Context Parameter
+
+The MCP Context provides powerful capabilities for client communication:
+
+```python
+from mcp.server.fastmcp import Context
+
+@mcp.tool()
+@log_performance(logger)  # Server-side performance tracking
+async def my_tool(param: str, *, ctx: Context) -> str:
+    """Tool with full Context capabilities."""
+    
+    # Server-side logging (not visible to client)
+    logger.tool_called("my_tool", param_length=len(param))
+    
+    # Client-visible logging via Context
+    # Log levels for client visibility
+    await ctx.debug("Detailed debug information")
+    await ctx.info(f"Processing {param}")
+    await ctx.warning("Non-critical issue detected")
+    await ctx.error("Error occurred but recovered")
+    
+    # Progress reporting for long operations
+    await ctx.report_progress(0.0, "Starting...")
+    await ctx.report_progress(0.5, "Halfway complete...")
+    await ctx.report_progress(1.0, "Finished!")
+    
+    # Advanced features (when applicable)
+    # Read resources from the server
+    data = await ctx.read_resource("resource://uri")
+    
+    # Request LLM generation (requires client support)
+    response = await ctx.sample("Generate a summary of...")
+```
+
+### Context Best Practices
+
+1. **Always include Context parameter** in tool signatures as required (using `*, ctx: Context`)
+2. **Use dual logging** - Context for client visibility, custom logging for server debugging
+3. **Report progress** for operations taking more than 1-2 seconds
+4. **Use appropriate log levels**:
+   - `debug`: Detailed technical information
+   - `info`: General operational messages
+   - `warning`: Important notices that don't stop execution
+   - `error`: Error conditions (use before returning error response)
+5. **Leverage advanced Context features** where applicable:
+   - `ctx.read_resource()` for accessing server resources
+   - `ctx.sample()` for LLM-powered content generation
+
+### Example Implementation Pattern
+
+```python
+@mcp.tool()
+@log_performance(logger)
+async def process_data_tool(
+    input_data: dict,
+    options: dict = None,
+    *,
+    ctx: Context
+) -> str:
+    """Process data with full observability."""
+    
+    # Server-side logging
+    logger.tool_called("process_data_tool", input_size=len(str(input_data)))
+    
+    try:
+        # Client communication
+        await ctx.info("Starting data processing...")
+        await ctx.report_progress(0.1, "Validating input...")
+        
+        # Validate input
+        validated = validate_tool_input(DataModel, input_data)
+        
+        # Long operation with progress
+        await ctx.report_progress(0.3, "Processing phase 1...")
+        
+        result = await phase1_processing(validated)
+        
+        await ctx.report_progress(0.6, "Processing phase 2...")
+            
+        final_result = await phase2_processing(result, options)
+        
+        # Success logging
+        await ctx.report_progress(1.0, "Complete")
+        await ctx.info("Data processed successfully")
+            
+        return success_response(
+            data=final_result,
+            message="Processing complete"
+        ).to_json_string()
+        
+    except Exception as e:
+        # Dual error logging
+        logger.tool_failed("process_data_tool", str(e), 0)
+        await ctx.error(f"Processing failed: {str(e)}")
+            
+        return error_response(
+            ErrorCode.INTERNAL_ERROR,
+            str(e)
+        ).to_json_string()
+```
 
 ## Logging Standards
 
